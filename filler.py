@@ -29,6 +29,7 @@ def fill_missing_emails(report_file, roster_file):
         reader = csv.DictReader(file)
         fieldnames = reader.fieldnames
         for row in reader:
+            row = {key.encode('utf-8').decode('unicode_escape'): value for key, value in row.items()}
             if not row['Email']:
                 email = get_email_from_roster(roster_file, row['Name (original name)'])
                 if email:
@@ -49,9 +50,13 @@ def main():
     for report_filename in os.listdir(reports_dir):
         if report_filename.endswith('.csv'):
             report_file = os.path.join(reports_dir, report_filename)
-            roster_file = os.path.join(rosters_dir, report_filename)
+            roster_file_prefix = report_filename[:2] # assume a two character prefix in report filename
+            roster_file = os.path.join(rosters_dir, f"{roster_file_prefix}-roster.csv") # assume same prefix on roster filename
             if os.path.exists(roster_file):
                 fill_missing_emails(report_file, roster_file)
+            else:
+                with open(log_filename, mode='a') as log_file:
+                    log_file.write(f"{datetime.now()} - {report_file} - Roster file not found\n")
 
 if __name__ == "__main__":
     main()
