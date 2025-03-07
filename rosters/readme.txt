@@ -1,2 +1,2 @@
-Student rosters will be stored in this directory.
-Rosters include students' email addresses and names.
+Place CSV roster files in this directory.
+Be sure include "Last", "First", "Email" in the header line of the roster CSV.
