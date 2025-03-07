@@ -8,7 +8,7 @@ This assumes you have a roster file of some kind. For example, if you are teachi
 
 1. Place the Zoom record CSV files in the `reports` directory.
 1. Place the roster CSV file in the `rosters` directory.
-1. Install dependencies (this is easiest done by using `pipenv shell` and `pipenv install`) (install `pipenv` with `pip install pipenv`) if you don't already have it.
+1. Install dependencies - this is easiest done by using `pipenv shell` and `pipenv install`. Install `pipenv` first with `pip install pipenv` if you don't already have it.
 1. Run the script with `python main.py` or `python3 main.py`.
 
 ## Conventions
