@@ -13,7 +13,7 @@ This assumes you have a roster file of some kind. For example, if you are teachi
 
 ## Conventions
 
-- report file names must have a two-letter prefix that matches the prefix in the corresponding roster file name.
+- report file names must have a two-letter prefix that matches the prefix in the corresponding roster file name - see the given example files, [`xx-report.csv`](./reports/xx-report.csv) and [`xx-roster.csv`](./rosters/xx-roster.csv).
 - report files are assumed to have "`Name (original name)`", and "`Email`" fields.
 - roster files are assumed to have "`Last`", "`First`", and "`Email`" fields.
 
