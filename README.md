@@ -1,6 +1,6 @@
 # Zoom Reports Cleaner
 
-Zoom records, which record participants to Zoom meetings, sometimes omits the email address of select participants, even when authentication to attend the meeting is required. This project attempts to rectify that by copying email addresses from a separate roster CSV file that includes the email addresses to the Zoom record CSV files. All changes are logged to a log file.
+Zoom reports, which report attendance at Zoom meetings, sometimes omit the email address of select participants, even when authentication to attend the meeting is required. This project attempts to rectify that by copying email addresses from a separate roster CSV file that includes the email addresses to the Zoom record CSV files. All changes are logged to a log file.
 
 This assumes you have a roster file of some kind. For example, if you are teaching an online course, you may have a student roster that includes all student names and email addresses.
 
