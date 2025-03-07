@@ -50,12 +50,12 @@ os.makedirs(logs_dir, exist_ok=True)
 # Create a log file with the current date
 log_filename = os.path.join(logs_dir, f'log-{datetime.now().strftime("%Y%m%d")}.txt')
 
-"""
-Retrieve the email address of a student from the roster file based on the student's full name.
-"""
 def get_email_from_roster(roster_file, student_full_name):
+    """
+    Retrieve the email address of a student from the roster file based on the student's full name.
+    """
     student_first_name, student_last_name = student_full_name.split(' ', 1)
-    with open(roster_file, mode='r') as file:
+    with open(roster_file, mode='r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         for row in reader:
             # exact matches may fail due to some differences in name syntax, so trying 'in' operation instead
@@ -63,13 +63,13 @@ def get_email_from_roster(roster_file, student_full_name):
                 return row['Email']
     return None
 
-"""
-Fill in missing email addresses in the report file using the corresponding roster file.
-Log the operations performed.
-"""
 def fill_missing_emails(report_file, roster_file):
+    """
+    Fill in missing email addresses in the report file using the corresponding roster file.
+    Log the operations performed.
+    """
     updated_rows = []
-    with open(report_file, mode='r') as file:
+    with open(report_file, mode='r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         fieldnames = reader.fieldnames
         for row in reader:
@@ -78,23 +78,23 @@ def fill_missing_emails(report_file, roster_file):
                 email = get_email_from_roster(roster_file, row[REPORT_NAME_FIELD])
                 if email:
                     row[REPORT_EMAIL_FIELD] = email
-                    with open(log_filename, mode='a') as log_file:
+                    with open(log_filename, mode='a', encoding='utf-8') as log_file:
                         log_file.write(f"{datetime.now()} - {report_file} - {row[REPORT_NAME_FIELD]} - {email}\n")
                 else:
-                    with open(log_filename, mode='a') as log_file:
+                    with open(log_filename, mode='a', encoding='utf-8') as log_file:
                         log_file.write(f"{datetime.now()} - {report_file} - {row[REPORT_NAME_FIELD]} - Email not found\n")
             updated_rows.append(row)
     
-    with open(report_file, mode='w', newline='') as file:
+    with open(report_file, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(updated_rows)
 
-"""
-Main function that processes all report files in the reports directory.
-Matches each report file with the corresponding roster file and fills in missing emails.
-"""
 def main():
+    """
+    Main function that processes all report files in the reports directory.
+    Matches each report file with the corresponding roster file and fills in missing emails.
+    """
     for report_filename in os.listdir(reports_dir):
         if report_filename.endswith('.csv'):
             report_file = os.path.join(reports_dir, report_filename)
@@ -103,9 +103,9 @@ def main():
             if os.path.exists(roster_file):
                 fill_missing_emails(report_file, roster_file)
             else:
-                with open(log_filename, mode='a') as log_file:
+                with open(log_filename, mode='a', encoding="utf-8") as log_file:
                     log_file.write(f"{datetime.now()} - {report_file} - Roster file not found\n")
 
-# Run it
 if __name__ == "__main__":
+    # Run it
     main()
