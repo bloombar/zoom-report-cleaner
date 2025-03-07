@@ -60,7 +60,7 @@ def get_email_from_roster(roster_file, student_full_name):
         for row in reader:
             # exact matches may fail due to some differences in name syntax, so trying 'in' operation instead
             if student_last_name in row[ROSTER_LAST_NAME_FIELD] and student_first_name in row[ROSTER_FIRST_NAME_FIELD]:
-                return row['Email']
+                return row[ROSTER_EMAIL_FIELD]
     return None
 
 def fill_missing_emails(report_file, roster_file):
