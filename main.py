@@ -50,11 +50,26 @@ os.makedirs(logs_dir, exist_ok=True)
 # Create a log file with the current date
 log_filename = os.path.join(logs_dir, f'log-{datetime.now().strftime("%Y%m%d")}.txt')
 
+def remove_bom_from_file(file_path):
+    """
+    Remove the BOM (Byte Order Mark) from a file if it exists.
+    This is necessary for CSV files that may have been saved with a BOM.
+    """
+    # Loop each file solving the problem - It will overwrite the original file
+    s = open(file_path, mode='r', encoding='utf-8-sig').read() # read file in bom-agnostic mode
+    open(file_path, mode='w', encoding='utf-8').write(s) # write file in standard utf-8 mode
+
 def get_email_from_roster(roster_file, student_full_name):
     """
     Retrieve the email address of a student from the roster file based on the student's full name.
     """
-    student_first_name, student_last_name = student_full_name.split(' ', 1)
+    split_student_full_name = student_full_name.split(' ', 1)
+    if len(split_student_full_name) < 2:
+        # if missing data, skip this row
+        return None
+    
+    # we have data so continue
+    student_first_name, student_last_name = split_student_full_name
     with open(roster_file, mode='r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         for row in reader:
@@ -69,11 +84,14 @@ def fill_missing_emails(report_file, roster_file):
     Log the operations performed.
     """
     updated_rows = []
+    # print(f"Processing {report_file} with {roster_file}")
     with open(report_file, mode='r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         fieldnames = reader.fieldnames
         for row in reader:
-            row = {key.encode('utf-8').decode('unicode_escape'): value for key, value in row.items()}
+            row = {key.encode('utf-8').decode('unicode_escape'): value.encode('utf-8').decode('unicode_escape') for key, value in row.items()}
+            # print(f"row: {row}")
+
             if not row[REPORT_EMAIL_FIELD]:
                 email = get_email_from_roster(roster_file, row[REPORT_NAME_FIELD])
                 if email:
@@ -101,7 +119,8 @@ def main():
             roster_file_prefix = report_filename[:FILENAME_PREFIX_LENGTH] # assume prefix in report and roster filename
             roster_file = os.path.join(rosters_dir, f"{roster_file_prefix}-roster.csv") # assume same prefix on roster filename
             if os.path.exists(roster_file):
-                fill_missing_emails(report_file, roster_file)
+                remove_bom_from_file(report_file) # remove BOM if it exists
+                fill_missing_emails(report_file, roster_file) # fill in missing email addresses from roster
             else:
                 with open(log_filename, mode='a', encoding="utf-8") as log_file:
                     log_file.write(f"{datetime.now()} - {report_file} - Roster file not found\n")
