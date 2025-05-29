@@ -27,6 +27,7 @@ import os
 import csv
 from datetime import datetime
 import yaml
+import re
 
 # convert YAML to dictionary
 # Load YAML from the file named config.yml
@@ -63,6 +64,10 @@ def get_email_from_roster(roster_file, student_full_name):
     """
     Retrieve the email address of a student from the roster file based on the student's full name.
     """
+    # Remove any content in parentheses from the student_full_name
+    student_full_name = re.sub(r'\s*\(.*?\)', '', student_full_name).strip()
+
+    # split the name into first and last
     split_student_full_name = student_full_name.split(' ', 1)
     if len(split_student_full_name) < 2:
         # if missing data, skip this row
