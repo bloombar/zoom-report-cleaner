@@ -2,3 +2,5 @@ reports/*.csv
 rosters/*.csv
 logs/*.txt
 !xx-*
+
+.DS_Store
