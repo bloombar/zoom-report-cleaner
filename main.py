@@ -66,30 +66,50 @@ def remove_bom_from_file(file_path):
     )  # write file in standard utf-8 mode
 
 
-def get_email_from_roster(roster_file, student_full_name):
+def get_email_from_roster(roster_file, student_zoom_name):
     """
     Retrieve the email address of a student from the roster file based on the student's full name.
     """
-    # Remove any content in parentheses from the student_full_name
-    student_full_name = re.sub(r"\s*\(.*?\)", "", student_full_name).strip()
+
+    # save all students in our roster
+    student_roster = []
+    with open(roster_file, mode="r", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        # add each student to our roster list
+        for row in reader:
+            student_roster.append(row)
+
+    # Remove any content in parentheses from the student_zoom_name
+    student_full_name = re.sub(r"\s*\(.*?\)", "", student_zoom_name).strip()
 
     # split the name into first and last
     split_student_full_name = student_full_name.split(" ", 1)
-    if len(split_student_full_name) < 2:
-        # if missing data, skip this row
-        return None
+    if len(split_student_full_name) >= 2:
+        # we have both last and first name.. try to match both
+        student_first_name, student_last_name = split_student_full_name
 
-    # we have data so continue
-    student_first_name, student_last_name = split_student_full_name
-    with open(roster_file, mode="r", encoding="utf-8") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
+        for row in student_roster:
             # exact matches may fail due to some differences in name syntax, so trying 'in' operation instead
             if (
                 student_last_name in row[ROSTER_LAST_NAME_FIELD]
                 and student_first_name in row[ROSTER_FIRST_NAME_FIELD]
             ):
                 return row[ROSTER_EMAIL_FIELD]
+    else:
+        # as a backup, look for only a partial match with first name
+        # first check how many students in the roster have the same first name
+        student_first_name = split_student_full_name[0]
+        # find all students with this name
+        matching_students = [
+            row
+            for row in student_roster
+            if student_first_name in row[ROSTER_FIRST_NAME_FIELD]
+        ]
+        # do nothing if more than one student shares the same first name
+        if len(matching_students) == 1:
+            # return the matching one student's email
+            return matching_students[0][ROSTER_EMAIL_FIELD]
+
     return None
 
 
