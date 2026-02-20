@@ -96,19 +96,27 @@ def get_email_from_roster(roster_file, student_zoom_name):
             ):
                 return row[ROSTER_EMAIL_FIELD]
     else:
-        # as a backup, look for only a partial match with first name
-        # first check how many students in the roster have the same first name
-        student_first_name = split_student_full_name[0]
-        # find all students with this name
-        matching_students = [
+        # as a backup, look for only a partial match with first or last name
+        student_name_token = split_student_full_name[0]
+        # find all students with this first name
+        matching_first = [
             row
             for row in student_roster
-            if student_first_name in row[ROSTER_FIRST_NAME_FIELD]
+            if student_name_token in row[ROSTER_FIRST_NAME_FIELD]
         ]
-        # do nothing if more than one student shares the same first name
-        if len(matching_students) == 1:
-            # return the matching one student's email
-            return matching_students[0][ROSTER_EMAIL_FIELD]
+        if len(matching_first) == 1:
+            # only return if one student matches the first name
+            return matching_first[0][ROSTER_EMAIL_FIELD]
+
+        # find all students with this last name
+        matching_last = [
+            row
+            for row in student_roster
+            if student_name_token in row[ROSTER_LAST_NAME_FIELD]
+        ]
+        if len(matching_last) == 1:
+            # only return if one student matches the last name
+            return matching_last[0][ROSTER_EMAIL_FIELD]
 
     return None
 
