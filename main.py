@@ -90,9 +90,10 @@ def get_email_from_roster(roster_file, student_zoom_name):
 
         for row in student_roster:
             # exact matches may fail due to some differences in name syntax, so trying 'in' operation instead
+            # case-insensitive matching to handle differences in capitalization
             if (
-                student_last_name in row[ROSTER_LAST_NAME_FIELD]
-                and student_first_name in row[ROSTER_FIRST_NAME_FIELD]
+                student_last_name.lower() in row[ROSTER_LAST_NAME_FIELD].lower()
+                and student_first_name.lower() in row[ROSTER_FIRST_NAME_FIELD].lower()
             ):
                 return row[ROSTER_EMAIL_FIELD]
     else:
@@ -102,7 +103,7 @@ def get_email_from_roster(roster_file, student_zoom_name):
         matching_first = [
             row
             for row in student_roster
-            if student_name_token in row[ROSTER_FIRST_NAME_FIELD]
+            if student_name_token.lower() in row[ROSTER_FIRST_NAME_FIELD].lower()
         ]
         if len(matching_first) == 1:
             # only return if one student matches the first name
@@ -112,7 +113,7 @@ def get_email_from_roster(roster_file, student_zoom_name):
         matching_last = [
             row
             for row in student_roster
-            if student_name_token in row[ROSTER_LAST_NAME_FIELD]
+            if student_name_token.lower() in row[ROSTER_LAST_NAME_FIELD].lower()
         ]
         if len(matching_last) == 1:
             # only return if one student matches the last name
