@@ -28,6 +28,7 @@ import csv
 from datetime import datetime
 import yaml
 import re
+import difflib
 
 # convert YAML to dictionary
 # Load YAML from the file named config.yml
@@ -56,6 +57,8 @@ ROSTER_LAST_NAME_FIELD = "Last"
 ROSTER_FIRST_NAME_FIELD = "First"
 ROSTER_EMAIL_FIELD = "Email"
 FILENAME_PREFIX_LENGTH = config["FILENAME_PREFIX_LENGTH"]
+# minimum difflib similarity score (0 to 1) for a last-resort match on a misspelled name
+FUZZY_MATCH_THRESHOLD = config.get("FUZZY_MATCH_THRESHOLD", 0.75)
 
 # Ensure logs directory exists
 os.makedirs(logs_dir, exist_ok=True)
@@ -107,6 +110,9 @@ def get_email_from_roster(roster_file, student_zoom_name):
     # Remove any content in parentheses from the student_zoom_name
     student_full_name = re.sub(r"\s*\(.*?\)", "", student_zoom_name).strip()
 
+    if not student_full_name:
+        return None
+
     # split the name into first and last
     split_student_full_name = student_full_name.split(" ", 1)
     if len(split_student_full_name) >= 2:
@@ -121,28 +127,53 @@ def get_email_from_roster(roster_file, student_zoom_name):
                 and student_first_name.lower() in row[ROSTER_FIRST_NAME_FIELD].lower()
             ):
                 return row[ROSTER_EMAIL_FIELD]
+
+        # as a backup, in case one of the names is spelled differently, look for a unique match on last name, then first name
+        name_checks = [
+            (student_last_name, ROSTER_LAST_NAME_FIELD),
+            (student_first_name, ROSTER_FIRST_NAME_FIELD),
+        ]
     else:
         # as a backup, look for only a partial match with first or last name
         student_name_token = split_student_full_name[0]
-        # find all students with this first name
-        matching_first = [
-            row
-            for row in student_roster
-            if student_name_token.lower() in row[ROSTER_FIRST_NAME_FIELD].lower()
+        name_checks = [
+            (student_name_token, ROSTER_FIRST_NAME_FIELD),
+            (student_name_token, ROSTER_LAST_NAME_FIELD),
         ]
-        if len(matching_first) == 1:
-            # only return if one student matches the first name
-            return matching_first[0][ROSTER_EMAIL_FIELD]
 
-        # find all students with this last name
-        matching_last = [
+    for student_name, roster_field in name_checks:
+        # find all students with this name
+        matching = [
             row
             for row in student_roster
-            if student_name_token.lower() in row[ROSTER_LAST_NAME_FIELD].lower()
+            if student_name.lower() in row[roster_field].lower()
         ]
-        if len(matching_last) == 1:
-            # only return if one student matches the last name
-            return matching_last[0][ROSTER_EMAIL_FIELD]
+        if len(matching) == 1:
+            # only return if one student matches the name
+            return matching[0][ROSTER_EMAIL_FIELD]
+
+    # as a last resort, look for a unique roster name that is similar enough to catch misspellings
+    matching_similar = []
+    for row in student_roster:
+        roster_full_name = f"{row[ROSTER_FIRST_NAME_FIELD]} {row[ROSTER_LAST_NAME_FIELD]}".strip()
+        # compare names as written, and with words sorted, in case the names are in a different order
+        score = max(
+            difflib.SequenceMatcher(None, student_name.lower(), roster_name.lower()).ratio()
+            for student_name, roster_name in [
+                (student_full_name, roster_full_name),
+                (" ".join(sorted(student_full_name.split())), " ".join(sorted(roster_full_name.split()))),
+            ]
+        )
+        if score > FUZZY_MATCH_THRESHOLD:
+            matching_similar.append((row, roster_full_name, score))
+    if len(matching_similar) == 1:
+        # only return if one student is similar enough; log it so the match can be reviewed
+        row, roster_full_name, score = matching_similar[0]
+        with open(log_filename, mode="a", encoding="utf-8") as log_file:
+            log_file.write(
+                f"{datetime.now()} - {roster_file} - {student_zoom_name} - similar to {roster_full_name} (score {score:.2f})\n"
+            )
+        return row[ROSTER_EMAIL_FIELD]
 
     return None
 
@@ -162,10 +193,10 @@ def fill_missing_emails(report_file, roster_file):
         name_field = columns.get(REPORT_NAME_FIELD.lower(), REPORT_NAME_FIELD)
         email_field = columns.get(REPORT_EMAIL_FIELD.lower(), REPORT_EMAIL_FIELD)
         for row in reader:
+            # drop any extra or missing cells in malformed rows so they don't break the CSV writer
+            # (don't re-encode values here... doing so garbles non-ASCII characters on every run)
             row = {
-                key.encode("utf-8")
-                .decode("unicode_escape"): value.encode("utf-8")
-                .decode("unicode_escape")
+                key: value
                 for key, value in row.items()
                 if isinstance(value, str) and isinstance(key, str)
             }

@@ -7,3 +7,4 @@ ROSTER_LAST_NAME_FIELD: ["Last", "Last name"]
 ROSTER_FIRST_NAME_FIELD: ["First", "First name"]
 ROSTER_EMAIL_FIELD: ["Email", "Email address"]
 FILENAME_PREFIX_LENGTH: 2
+FUZZY_MATCH_THRESHOLD: 0.75
