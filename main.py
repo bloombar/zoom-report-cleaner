@@ -13,7 +13,7 @@ Conventions:
     config.yml contains conventions that can be modified:
     report file names area assumed to have a two-letter prefix that matches the prefix in the corresponding roster file name.
     report files are assumed to have "Name (original name)", and "Email" fields.
-    roster files are assumed to have "Last", "First", and "Email" fields.
+    roster files are assumed to have "Last" (or "Last name"), "First" (or "First name"), and "Email" (or "Email address") fields; other fields are ignored.
 
 Usage:
     place roster files in the rosters directory
@@ -40,9 +40,21 @@ rosters_dir = config["ROSTERS_DIR"]
 logs_dir = config["LOGS_DIR"]
 REPORT_NAME_FIELD = config["REPORT_NAME_FIELD"]
 REPORT_EMAIL_FIELD = config["REPORT_EMAIL_FIELD"]
-ROSTER_LAST_NAME_FIELD = config["ROSTER_LAST_NAME_FIELD"]
-ROSTER_FIRST_NAME_FIELD = config["ROSTER_FIRST_NAME_FIELD"]
-ROSTER_EMAIL_FIELD = config["ROSTER_EMAIL_FIELD"]
+
+# roster fields may be a single column name or a list of acceptable alternate column names
+def as_list(value):
+    return value if isinstance(value, list) else [value]
+
+
+ROSTER_FIELD_ALIASES = {
+    "Last": as_list(config["ROSTER_LAST_NAME_FIELD"]),
+    "First": as_list(config["ROSTER_FIRST_NAME_FIELD"]),
+    "Email": as_list(config["ROSTER_EMAIL_FIELD"]),
+}
+# internal keys used for each roster row, regardless of the column names in the roster file
+ROSTER_LAST_NAME_FIELD = "Last"
+ROSTER_FIRST_NAME_FIELD = "First"
+ROSTER_EMAIL_FIELD = "Email"
 FILENAME_PREFIX_LENGTH = config["FILENAME_PREFIX_LENGTH"]
 
 # Ensure logs directory exists
@@ -73,11 +85,24 @@ def get_email_from_roster(roster_file, student_zoom_name):
 
     # save all students in our roster
     student_roster = []
-    with open(roster_file, mode="r", encoding="utf-8") as file:
+    # utf-8-sig handles rosters saved with a BOM
+    with open(roster_file, mode="r", encoding="utf-8-sig") as file:
         reader = csv.DictReader(file)
-        # add each student to our roster list
+        # find which column holds each field we need, ignoring case and stray whitespace
+        columns = {name.strip().lower(): name for name in reader.fieldnames or []}
+        roster_columns = {}
+        for field, aliases in ROSTER_FIELD_ALIASES.items():
+            column = next((columns[a.lower()] for a in aliases if a.lower() in columns), None)
+            if column is None:
+                raise ValueError(
+                    f"{roster_file} is missing a {field} column (expected one of: {', '.join(aliases)})"
+                )
+            roster_columns[field] = column
+        # add each student to our roster list, keeping only the fields we need and ignoring any others
         for row in reader:
-            student_roster.append(row)
+            student_roster.append(
+                {field: (row[column] or "").strip() for field, column in roster_columns.items()}
+            )
 
     # Remove any content in parentheses from the student_zoom_name
     student_full_name = re.sub(r"\s*\(.*?\)", "", student_zoom_name).strip()
@@ -132,6 +157,10 @@ def fill_missing_emails(report_file, roster_file):
     with open(report_file, mode="r", encoding="utf-8") as file:
         reader = csv.DictReader(file)
         fieldnames = reader.fieldnames
+        # find the report's name and email columns, ignoring case and stray whitespace
+        columns = {name.strip().lower(): name for name in fieldnames or []}
+        name_field = columns.get(REPORT_NAME_FIELD.lower(), REPORT_NAME_FIELD)
+        email_field = columns.get(REPORT_EMAIL_FIELD.lower(), REPORT_EMAIL_FIELD)
         for row in reader:
             row = {
                 key.encode("utf-8")
@@ -142,18 +171,18 @@ def fill_missing_emails(report_file, roster_file):
             }
             # print(f"row: {row}")
 
-            if not row[REPORT_EMAIL_FIELD]:
-                email = get_email_from_roster(roster_file, row[REPORT_NAME_FIELD])
+            if not row[email_field]:
+                email = get_email_from_roster(roster_file, row[name_field])
                 if email:
-                    row[REPORT_EMAIL_FIELD] = email
+                    row[email_field] = email
                     with open(log_filename, mode="a", encoding="utf-8") as log_file:
                         log_file.write(
-                            f"{datetime.now()} - {report_file} - {row[REPORT_NAME_FIELD]} - {email}\n"
+                            f"{datetime.now()} - {report_file} - {row[name_field]} - {email}\n"
                         )
                 else:
                     with open(log_filename, mode="a", encoding="utf-8") as log_file:
                         log_file.write(
-                            f"{datetime.now()} - {report_file} - {row[REPORT_NAME_FIELD]} - Email not found\n"
+                            f"{datetime.now()} - {report_file} - {row[name_field]} - Email not found\n"
                         )
             updated_rows.append(row)
 

@@ -3,7 +3,7 @@ ROSTERS_DIR: "./rosters"
 LOGS_DIR: "./logs"
 REPORT_NAME_FIELD: "Name (original name)"
 REPORT_EMAIL_FIELD: "Email"
-ROSTER_LAST_NAME_FIELD: "Last"
-ROSTER_FIRST_NAME_FIELD: "First"
-ROSTER_EMAIL_FIELD: "Email"
+ROSTER_LAST_NAME_FIELD: ["Last", "Last name"]
+ROSTER_FIRST_NAME_FIELD: ["First", "First name"]
+ROSTER_EMAIL_FIELD: ["Email", "Email address"]
 FILENAME_PREFIX_LENGTH: 2
