@@ -11,6 +11,10 @@ This assumes you have a roster file of some kind. For example, if you are teachi
 1. Install dependencies - this is easiest done by using `pipenv shell` and `pipenv install`. Install `pipenv` first with `pip install pipenv` if you don't already have it.
 1. Run the script with `python main.py` or `python3 main.py`.
 
+The script only fills in blank emails, and records each one it fills in `reports/.filled-emails.json`. If you later correct a roster, run `python main.py --refill` to look those emails up again in the current rosters. Emails that came from Zoom itself are never changed. Each changed email is logged with the email it replaced, e.g. `... - new@example.edu (was old@example.edu)`.
+
+When a name doesn't match the roster exactly, a similar roster name is accepted only if it shares at least one word with the Zoom name and is the only roster name that close (`FUZZY_MATCH_THRESHOLD` in `config.yml`). These matches are logged as `similar to` lines and are worth checking.
+
 ## Conventions
 
 - report file names must have a two-letter prefix that matches the prefix in the corresponding roster file name - see the given example files, [`xx-report.csv`](./reports/xx-report.csv) and [`xx-roster.csv`](./rosters/xx-roster.csv).

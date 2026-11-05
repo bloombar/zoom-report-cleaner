@@ -20,11 +20,14 @@ Usage:
     place report files in the reports directory
     install dependencies (preferably using 'pipenv shell' and 'pipenv install')
     run the program!
+    after correcting a roster, run it with --refill to redo the emails it filled in on earlier runs
 """
 
 
 import os
 import csv
+import json
+import argparse
 from datetime import datetime
 import yaml
 import re
@@ -58,10 +61,13 @@ ROSTER_FIRST_NAME_FIELD = "First"
 ROSTER_EMAIL_FIELD = "Email"
 FILENAME_PREFIX_LENGTH = config["FILENAME_PREFIX_LENGTH"]
 # minimum difflib similarity score (0 to 1) for a last-resort match on a misspelled name
-FUZZY_MATCH_THRESHOLD = config.get("FUZZY_MATCH_THRESHOLD", 0.75)
+FUZZY_MATCH_THRESHOLD = config.get("FUZZY_MATCH_THRESHOLD", 0.85)
 
 # Ensure logs directory exists
 os.makedirs(logs_dir, exist_ok=True)
+
+# record of every email this script has filled in, so --refill can redo them without touching emails from Zoom
+filled_ledger_file = os.path.join(reports_dir, ".filled-emails.json")
 
 # Create a log file with the current date
 log_filename = os.path.join(logs_dir, f'log-{datetime.now().strftime("%Y%m%d")}.txt')
@@ -153,9 +159,19 @@ def get_email_from_roster(roster_file, student_zoom_name):
             return matching[0][ROSTER_EMAIL_FIELD]
 
     # as a last resort, look for a unique roster name that is similar enough to catch misspellings
+    student_words = set(student_full_name.lower().split())
     matching_similar = []
     for row in student_roster:
         roster_full_name = f"{row[ROSTER_FIRST_NAME_FIELD]} {row[ROSTER_LAST_NAME_FIELD]}".strip()
+        # require at least one name to match exactly, so only part of the name may be misspelled...
+        # otherwise similar-looking names of different people match (e.g. Jane Smith vs. Jake Smyth)
+        roster_words = set(roster_full_name.lower().split())
+        if not student_words & roster_words:
+            continue
+        # one name containing every word of the other (e.g. an extra middle name, or reordered names) is a full match
+        if student_words <= roster_words or roster_words <= student_words:
+            matching_similar.append((row, roster_full_name, 1.0))
+            continue
         # compare names as written, and with words sorted, in case the names are in a different order
         score = max(
             difflib.SequenceMatcher(None, student_name.lower(), roster_name.lower()).ratio()
@@ -178,11 +194,15 @@ def get_email_from_roster(roster_file, student_zoom_name):
     return None
 
 
-def fill_missing_emails(report_file, roster_file):
+def fill_missing_emails(report_file, roster_file, filled, refill=False):
     """
     Fill in missing email addresses in the report file using the corresponding roster file.
     Log the operations performed.
+    filled maps each name in this report whose email this script filled in to that email; it is updated in place.
+    With refill, emails this script filled in on earlier runs are looked up again, so roster corrections take effect.
     """
+    # emails filled in on earlier runs, before this run changes anything
+    previously_filled = dict(filled)
     updated_rows = []
     # print(f"Processing {report_file} with {roster_file}")
     with open(report_file, mode="r", encoding="utf-8") as file:
@@ -202,18 +222,29 @@ def fill_missing_emails(report_file, roster_file):
             }
             # print(f"row: {row}")
 
+            name = row[name_field]
+            previous_email = ""
+            if refill and name in previously_filled and row[email_field] == previously_filled[name]:
+                # clear an email this script filled in earlier (never one from Zoom), so it is looked up again
+                previous_email = row[email_field]
+                row[email_field] = ""
+
             if not row[email_field]:
-                email = get_email_from_roster(roster_file, row[name_field])
+                email = get_email_from_roster(roster_file, name)
                 if email:
                     row[email_field] = email
+                    filled[name] = email
+                    changed = f" (was {previous_email})" if previous_email and previous_email != email else ""
                     with open(log_filename, mode="a", encoding="utf-8") as log_file:
                         log_file.write(
-                            f"{datetime.now()} - {report_file} - {row[name_field]} - {email}\n"
+                            f"{datetime.now()} - {report_file} - {name} - {email}{changed}\n"
                         )
                 else:
+                    filled.pop(name, None)
+                    changed = f" (was {previous_email})" if previous_email else ""
                     with open(log_filename, mode="a", encoding="utf-8") as log_file:
                         log_file.write(
-                            f"{datetime.now()} - {report_file} - {row[name_field]} - Email not found\n"
+                            f"{datetime.now()} - {report_file} - {name} - Email not found{changed}\n"
                         )
             updated_rows.append(row)
 
@@ -223,12 +254,32 @@ def fill_missing_emails(report_file, roster_file):
         writer.writerows(updated_rows)
 
 
-def main():
+def load_filled_ledger():
+    """
+    Load the record of emails this script has filled in: {report filename: {name: email}}.
+    """
+    if not os.path.exists(filled_ledger_file):
+        return {}
+    with open(filled_ledger_file, mode="r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+def save_filled_ledger(filled_ledger):
+    """
+    Save the record of emails this script has filled in.
+    """
+    with open(filled_ledger_file, mode="w", encoding="utf-8") as file:
+        json.dump(filled_ledger, file, indent=2, sort_keys=True, ensure_ascii=False)
+
+
+def main(refill=False):
     """
     Main function that processes all report files in the reports directory.
     Matches each report file with the corresponding roster file and fills in missing emails.
+    With refill, emails filled in on earlier runs are looked up again in the current rosters.
     """
-    for report_filename in os.listdir(reports_dir):
+    filled_ledger = load_filled_ledger()
+    for report_filename in sorted(os.listdir(reports_dir)):
         if report_filename.endswith(".csv"):
             report_file = os.path.join(reports_dir, report_filename)
             roster_file_prefix = report_filename[
@@ -239,9 +290,11 @@ def main():
             )  # assume same prefix on roster filename
             if os.path.exists(roster_file):
                 remove_bom_from_file(report_file)  # remove BOM if it exists
-                fill_missing_emails(
-                    report_file, roster_file
-                )  # fill in missing email addresses from roster
+                # fill in missing email addresses from roster
+                filled = filled_ledger.setdefault(report_filename, {})
+                fill_missing_emails(report_file, roster_file, filled, refill)
+                # save after each report, so the record matches the reports even if a later one fails
+                save_filled_ledger(filled_ledger)
             else:
                 with open(log_filename, mode="a", encoding="utf-8") as log_file:
                     log_file.write(
@@ -250,5 +303,11 @@ def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Fill in missing emails in Zoom reports from rosters.")
+    parser.add_argument(
+        "--refill",
+        action="store_true",
+        help="look up emails this script filled in on earlier runs again, e.g. after correcting a roster",
+    )
     # Run it
-    main()
+    main(refill=parser.parse_args().refill)
